@@ -1,24 +1,82 @@
-import requests
-import time
-import os
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מפת התראות בזמן אמת</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+            transition: background-color 0.5s ease;
+        }
 
-# הגדרות
-URL = "https://www.oref.org.il/WarningMessages/History/AlertsHistory.json"
-HEADERS = {'User-Agent': 'Mozilla/5.0'}
+        /* עיצוב המפה כפי שביקשת: לבן עם קו מתאר שחור */
+        #israel-map {
+            width: auto;
+            height: 80vh;
+            fill: white;
+            stroke: black;
+            stroke-width: 1;
+        }
 
-def get_alerts():
-    try:
-        response = requests.get(URL, headers=HEADERS, timeout=5)
-        data = response.json()
-        if data:
-            latest = data[0]
-            print(f"--- התראה אחרונה: {latest['data']} ({latest['alertDate']}) ---")
-        else:
-            print("השמיים שקטים...")
-    except Exception as e:
-        print("מנסה להתחבר למכ"ם...")
+        /* מצב התראה: כל הגוף הופך לאדום */
+        body.alert-active {
+            background-color: #ff0000;
+        }
 
-while True:
-    os.system('cls' if os.name == 'nt' else 'clear') # מנקה את המסך
-    get_alerts()
-    time.sleep(2) # בודק כל 2 שניות
+        #status {
+            margin-top: 20px;
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+    </style>
+</head>
+<body>
+
+    <svg id="israel-map" viewBox="0 0 200 500">
+        <path d="M100,10 L110,50 L105,100 L120,200 L110,350 L90,480 L70,350 L80,200 L75,100 L90,50 Z" />
+    </svg>
+
+    <div id="status">סורק התראות...</div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const body = document.body;
+
+        async function checkAlerts() {
+            try {
+                // שימוש ב-API נגיש (דוגמה למקור נתונים)
+                const response = await fetch('https://api.redalert.me/alerts'); 
+                const data = await response.json();
+
+                if (data && data.length > 0) {
+                    // יש התראה פעילה!
+                    body.classList.add('alert-active');
+                    statusDiv.innerText = "צבע אדום: " + data[0].area;
+                } else {
+                    // אין התראות
+                    body.classList.remove('alert-active');
+                    statusDiv.innerText = "הכל שקט";
+                }
+            } catch (error) {
+                console.error("שגיאה במשיכת נתונים:", error);
+                statusDiv.innerText = "שגיאה בחיבור לשרת";
+            }
+        }
+
+        // בדיקה בכל שנייה אחת (1000 מילישניות)
+        setInterval(checkAlerts, 1000);
+        
+        // הפעלה ראשונית
+        checkAlerts();
+    </script>
+</body>
+</html>
