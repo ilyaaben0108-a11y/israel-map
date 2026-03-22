@@ -3,89 +3,76 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מפת התראות בזמן אמת</title>
+    <title>מפת התרעות בסגנון פיקוד העורף</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
     <style>
-        /* עיצוב כללי - רקע לבן כברירת מחדל */
-        body {
+        body, html {
             margin: 0;
             padding: 0;
-            background-color: #ffffff;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            overflow: hidden;
-            transition: background-color 0.2s ease; /* מעבר מהיר לצבע אדום */
-        }
-
-        /* המפה: לבנה עם קו מתאר שחור דק */
-        #israel-map {
-            height: 85vh;
-            width: auto;
-            fill: #ffffff;
-            stroke: #000000;
-            stroke-width: 0.5;
-            filter: drop-shadow(0px 0px 2px rgba(0,0,0,0.1));
-        }
-
-        /* כשמתקבלת התראה: כל הרקע הופך לאדום */
-        body.alert-active {
-            background-color: #ff0000;
-        }
-
-        /* טקסט סטטוס קטן בתחתית */
-        #status-bar {
-            position: fixed;
-            bottom: 20px;
+            height: 100%;
             font-family: sans-serif;
-            font-size: 14px;
-            color: #333;
-            background: rgba(255,255,255,0.8);
-            padding: 5px 15px;
-            border-radius: 20px;
+        }
+
+        #map {
+            height: 100vh;
+            width: 100%;
+            background-color: #1a1a1a; /* רקע כהה כמו באתרים דומים */
+        }
+
+        .map-title {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
 
-    <svg id="israel-map" viewBox="0 0 120 300">
-        <path d="M57.5,14.5 L60.2,16.8 L63.5,16.2 L65.1,18.9 L67.8,18.4 L69.4,21.1 L72.1,21.6 L72.6,24.3 L75.3,25.9 L74.8,28.6 L76.4,31.3 L75.3,34.0 L76.9,36.1 L75.3,38.3 L75.9,41.5 L73.7,43.7 L73.7,46.9 L71.5,49.1 L71.5,52.3 L69.4,54.5 L69.4,57.7 L67.2,59.9 L67.2,63.1 L65.1,65.3 L65.1,68.5 L62.9,70.7 L62.9,73.9 L60.7,76.1 L60.7,79.3 L58.6,81.5 L58.6,84.7 L56.4,86.9 L56.4,90.1 L54.2,92.3 L54.2,95.5 L52.1,97.7 L52.1,100.9 L49.9,103.1 L49.9,106.3 L47.7,108.5 L47.7,111.7 L45.6,113.9 L45.6,117.1 L43.4,119.3 L43.4,122.5 L41.2,124.7 L41.2,127.9 L39.1,130.1 L39.1,133.3 L36.9,135.5 L36.9,138.7 L34.7,140.9 L34.7,144.1 L32.6,146.3 L32.6,149.5 L30.4,151.7 L30.4,154.9 L28.2,157.1 L28.2,160.3 L26,162.5 L26,165.7 L23.9,167.9 L23.9,171.1 L21.7,173.3 L21.7,176.5 L19.5,178.7 L19.5,181.9 L17.4,184.1 L17.4,187.3 L15.2,189.5 L15.2,192.7 L13,194.9 L13,198.1 L10.9,200.3 L10.9,203.5 L8.7,205.7 L8.7,208.9 L6.5,211.1 L6.5,214.3 L4.4,216.5 L4.4,219.7 L2.2,221.9 L2.2,225.1 L0,227.3 L5,240 L15,255 L25,270 L35,285 L45,295 L55,299 L60,299 L58,280 L62,260 L65,240 L62,220 L68,200 L65,180 L72,160 L75,140 L72,120 L80,100 L78,80 L85,60 L82,40 L88,20 L85,10 L80,5 L70,2 L60,5 Z" />
-    </svg>
+    <div class="map-title">מפת התרעות בזמן אמת</div>
+    <div id="map"></div>
 
-    <div id="status-bar">מתחבר לנתוני פיקוד העורף...</div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        const body = document.body;
-        const statusBar = document.getElementById('status-bar');
+        // יצירת המפה ומרכוז על ישראל
+        const map = L.map('map').setView([31.5, 34.9], 8);
 
-        // פונקציה למשיכת התראות
-        async function fetchAlerts() {
-            try {
-                // שימוש ב-API פומבי שמנגיש את נתוני פיקוד העורף (למניעת חסימת דפדפן)
-                const response = await fetch('https://api.redalert.me/alerts');
-                const alerts = await response.json();
+        // הוספת שכבת מפה (Dark Mode בסגנון Siren)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO'
+        }).addTo(map);
 
-                if (alerts && alerts.length > 0) {
-                    // יש אזעקה!
-                    body.classList.add('alert-active');
-                    statusBar.innerText = "התראה פעילה: " + alerts[0].area;
-                } else {
-                    // שקט
-                    body.classList.remove('alert-active');
-                    statusBar.innerText = "הכל שקט - סורק בכל שנייה";
-                }
-            } catch (error) {
-                console.error("Error fetching alerts:", error);
-                statusBar.innerText = "ממתין לעדכון נתונים...";
-            }
+        // פונקציה לדוגמה לעיצוב אזור צבוע (פוליגון)
+        function styleArea(feature) {
+            return {
+                fillColor: '#ff0000', // אדום להתרעה
+                weight: 2,
+                opacity: 1,
+                color: 'white',
+                fillOpacity: 0.6
+            };
         }
 
-        // בדיקה כל 1000 מילישניות (שנייה אחת) כפי שביקשת
-        setInterval(fetchAlerts, 1000);
+        /* הערה: כדי להציג את האזורים האמיתיים, עליך לטעון קובץ GeoJSON 
+           של אזורי פיקוד העורף. הקוד למטה הוא דוגמה לאיך טוענים נתונים:
+        */
+        
+        // fetch('path_to_your_israel_polygons.json')
+        //     .then(res => res.json())
+        //     .then(data => {
+        //         L.geoJSON(data, {
+        //             style: { color: "#333", weight: 1, fillOpacity: 0.1 }
+        //         }).addTo(map);
+        //     });
 
-        // הפעלה ראשונה מיד עם הטעינה
-        fetchAlerts();
     </script>
 </body>
 </html>
