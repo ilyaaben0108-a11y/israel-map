@@ -3,73 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מפת התרעות - גרסה לבנה</title>
+    <title>מפת התרעות - זמני תצוגה משתנים</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        /* איפוס הגדרות כדי למנוע רקע שחור */
-        body, html {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            background-color: #ffffff !important; /* לבן מוחלט */
-        }
-
-        #map {
-            height: 100vh;
-            width: 100%;
-            background-color: #ffffff; /* מבטיח שהדיב עצמו לבן */
-        }
+        body, html { margin: 0; padding: 0; height: 100%; background: white; font-family: sans-serif; }
+        #map { height: 100vh; width: 100%; background: #ffffff; }
 
         .map-title {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            z-index: 1000;
-            background: rgba(255, 255, 255, 0.9);
-            color: #333;
-            padding: 10px 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-            font-family: Arial, sans-serif;
-            border: 1px solid #ccc;
+            position: absolute; top: 15px; right: 15px; z-index: 1000;
+            background: white; color: red; padding: 10px 20px;
+            border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            font-weight: bold; border: 2px solid red;
         }
+
+        /* עיצוב הבועה שקופצת */
+        .leaflet-popup-content-wrapper { border-radius: 5px; border-top: 5px solid red; }
     </style>
 </head>
 <body>
 
-    <div class="map-title">מערכת התרעות בזמן אמת</div>
+    <div class="map-title">מערכת התרעות - מפה לבנה</div>
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // יצירת המפה עם הגדרות צבע בהיר
+        // 1. הגדרת המפה ומרכוז על ישראל
         const map = L.map('map').setView([31.5, 34.9], 8);
 
-        // שימוש בטיילס הלבנים של Positron
+        // 2. שכבת בסיס לבנה (Light Mode)
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap &copy; CARTO',
-            subdomains: 'abcd',
-            maxZoom: 19
+            attribution: '&copy; OpenStreetMap'
         }).addTo(map);
 
-        // פונקציה להצגת התרעה (עיגול אדום מהבהב)
-        function createAlert(lat, lng, locationName) {
-            const alertCircle = L.circle([lat, lng], {
-                color: 'red',
-                fillColor: '#ff0000',
-                fillOpacity: 0.5,
-                radius: 4000
-            }).addTo(map);
+        let geojsonLayer;
 
-            alertCircle.bindPopup("<b>צבע אדום:</b> " + locationName).openPopup();
+        // 3. פונקציה לקביעת זמן המחיקה לפי שם האזור
+        function getDuration(name) {
+            const n = name.toLowerCase();
+            
+            // הגדרת מילות מפתח לזיהוי האזורים
+            const centerWords = ["מרכז", "תל אביב", "גוש דן", "center", "tel aviv", "petah tikva", "rishon"];
+            const northWords = ["צפון", "חיפה", "גליל", "north", "haifa", "galilee", "karmiel"];
+            const southWords = ["דרום", "נגב", "באר שבע", "אילת", "south", "negev", "beer sheva", "ashdod", "ashkelon"];
+
+            if (centerWords.some(w => n.includes(w))) return 90000; // 90 שניות למרכז
+            if (northWords.some(w => n.includes(w))) return 60000;  // 60 שניות לצפון
+            if (southWords.some(w => n.includes(w))) return 10000;  // 10 שניות לדרום
+
+            return 30000; // ברירת מחדל לאזורים אחרים: 30 שניות
         }
 
-        // דוגמה להתרעה שתופיע מיד כדי שתראה שזה עובד
-        createAlert(32.0853, 34.7818, "תל אביב - דוגמה");
+        // 4. טעינת קובץ הגבולות של ישראל (GeoJSON)
+        fetch('https://raw.githubusercontent.com/OrenFarhi/israel-geojson/master/israel-cities.json')
+            .then(res => res.json())
+            .then(data => {
+                geojsonLayer = L.geoJSON(data, {
+                    style: { color: "#ddd", weight: 1, fillOpacity: 0.05 },
+                    onEachFeature: (feature, layer) => {
+                        // שמירת שם העיר בתוך השכבה
+                        layer.cityName = feature.properties.name || feature.properties.english_name || "";
+                    }
+                }).addTo(map);
 
+                // --- דוגמאות לבדיקה ---
+                // תל אביב (מרכז) - יימחק אחרי 90 שניות
+                activateCityAlert("Tel Aviv");
+
+                // באר שבע (דרום) - יימחק אחרי 10 שניות
+                setTimeout(() => activateCityAlert("Beer Sheva"), 2000); 
+            });
+
+        // 5. פונקציה לצביעת עיר ומחיקתה בזמן הנכון
+        function activateCityAlert(cityName) {
+            if (!geojsonLayer) return;
+
+            const timeToRemove = getDuration(cityName);
+
+            geojsonLayer.eachLayer(layer => {
+                if (layer.cityName && layer.cityName.toLowerCase().includes(cityName.toLowerCase())) {
+                    
+                    // צביעה באדום בוהק
+                    layer.setStyle({
+                        fillColor: 'red',
+                        fillOpacity: 0.8,
+                        color: 'red',
+                        weight: 2
+                    });
+
+                    // פתיחת הודעה
+                    layer.bindPopup("<b>צבע אדום: " + cityName + "</b>").openPopup();
+
+                    // מחיקה לפי הזמן שהוגדר
+                    setTimeout(() => {
+                        layer.setStyle({
+                            fillColor: 'transparent',
+                            fillOpacity: 0.05,
+                            color: '#ddd',
+                            weight: 1
+                        });
+                        if (layer.getPopup().isOpen()) {
+                            map.closePopup();
+                        }
+                    }, timeToRemove);
+
+                    console.log(`התרעה ל-${cityName} תוסר בעוד ${timeToRemove/1000} שניות.`);
+                }
+            });
+        }
     </script>
 </body>
 </html>
