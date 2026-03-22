@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>חמ"ל התראות - לבן ונקי</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; background: #ffffff; overflow: hidden; font-family: sans-serif; }
+        
+        /* המפה הלבנה */
+        #map { 
+            height: 100vh; 
+            width: 100%; 
+            filter: grayscale(100%) brightness(1.2) contrast(0.8); 
+        }
+        
+        /* פאנל התראות מעוצב בלבן */
+        .panel {
+            position: absolute; top: 15px; right: 15px; z-index: 9999;
+            background: rgba(255, 255, 255, 0.95); border: 2px solid #eee;
+            padding: 15px; border-radius: 12px; width: 250px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            text-align: center;
+        }
+        
+        .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #2ecc71; margin-left: 8px; }
+        .active-red { background: #ff0000; box-shadow: 0 0 10px #ff0000; animation: blink 0.6s infinite; }
+        
+        #alert-list { font-size: 20px; font-weight: bold; color: #333; margin-top: 10px; }
+        .red-text { color: #ff0000 !important; }
+        
+        @keyframes blink { 50% { opacity: 0.3; } }
+    </style>
+</head>
+<body>
+
+    <div class="panel">
+        <div style="font-size: 14px; color: #888;">
+            <span id="dot" class="dot"></span> סריקת מכ"ם פעילה
+        </div>
+        <div id="alert-list">השמיים שקטים</div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // יצירת המפה על ישראל
+        const map = L.map('map', { zoomControl: false }).setView([31.5, 34.8], 8);
+        
+        // טעינת מפה לבנה משרת חינמי
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+        async function checkAlerts() {
+            try {
+                // משיכת נתונים בחינם מפיקוד העורף
+                const res = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent('https://www.oref.org.il/WarningMessages/History/AlertsHistory.json?t=' + Date.now()));
+                const wrapper = await res.json();
+                const data = JSON.parse(wrapper.contents);
+
+                const dot = document.getElementById('dot');
+                const alertList = document.getElementById('alert-list');
+
+                if (data && data.length > 0) {
+                    dot.className = "dot active-red";
+                    alertList.innerText = "צבע אדום: " + data[0].data;
+                    alertList.classList.add('red-text');
+                } else {
+                    dot.className = "dot";
+                    alertList.innerText = "השמיים שקטים";
+                    alertList.classList.remove('red-text');
+                }
+            } catch (e) { console.log("סורק..."); }
+        }
+
+        setInterval(checkAlerts, 2000);
+    </script>
+</body>
+</html>
