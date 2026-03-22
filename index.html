@@ -3,32 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>חמ"ל התראות - לבן ונקי</title>
+    <title>חמ"ל התראות בזמן אמת</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body, html { margin: 0; padding: 0; height: 100%; background: #ffffff; overflow: hidden; font-family: sans-serif; }
+        #map { height: 100vh; width: 100%; filter: grayscale(100%) brightness(1.1); }
         
-        /* המפה הלבנה */
-        #map { 
-            height: 100vh; 
-            width: 100%; 
-            filter: grayscale(100%) brightness(1.2) contrast(0.8); 
-        }
-        
-        /* פאנל התראות מעוצב בלבן */
         .panel {
             position: absolute; top: 15px; right: 15px; z-index: 9999;
-            background: rgba(255, 255, 255, 0.95); border: 2px solid #eee;
-            padding: 15px; border-radius: 12px; width: 250px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            text-align: center;
+            background: white; border: 2px solid #eee; padding: 15px; border-radius: 12px;
+            width: 260px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center;
         }
         
         .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #2ecc71; margin-left: 8px; }
         .active-red { background: #ff0000; box-shadow: 0 0 10px #ff0000; animation: blink 0.6s infinite; }
         
-        #alert-list { font-size: 20px; font-weight: bold; color: #333; margin-top: 10px; }
-        .red-text { color: #ff0000 !important; }
+        #alert-list { font-size: 18px; font-weight: bold; color: #333; margin-top: 10px; }
+        #alert-time { font-size: 12px; color: #888; margin-top: 5px; }
         
         @keyframes blink { 50% { opacity: 0.3; } }
     </style>
@@ -36,45 +27,59 @@
 <body>
 
     <div class="panel">
-        <div style="font-size: 14px; color: #888;">
-            <span id="dot" class="dot"></span> סריקת מכ"ם פעילה
-        </div>
-        <div id="alert-list">השמיים שקטים</div>
+        <div><span id="dot" class="dot"></span> <span id="status">סורק...</span></div>
+        <div id="alert-list">טוען נתונים...</div>
+        <div id="alert-time"></div>
     </div>
 
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // יצירת המפה על ישראל
         const map = L.map('map', { zoomControl: false }).setView([31.5, 34.8], 8);
-        
-        // טעינת מפה לבנה משרת חינמי
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-        async function checkAlerts() {
+        async function updateAlerts() {
             try {
-                // משיכת נתונים בחינם מפיקוד העורף
-                const res = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent('https://www.oref.org.il/WarningMessages/History/AlertsHistory.json?t=' + Date.now()));
-                const wrapper = await res.json();
-                const data = JSON.parse(wrapper.contents);
+                // שימוש במתווך אמין יותר לעקיפת חסימה
+                const url = 'https://api.allorigins.win/get?url=' + encodeURIComponent('https://www.oref.org.il/WarningMessages/History/AlertsHistory.json?t=' + Date.now());
+                const response = await fetch(url);
+                const result = await response.json();
+                const data = JSON.parse(result.contents);
 
                 const dot = document.getElementById('dot');
                 const alertList = document.getElementById('alert-list');
+                const alertTime = document.getElementById('alert-time');
 
                 if (data && data.length > 0) {
-                    dot.className = "dot active-red";
-                    alertList.innerText = "צבע אדום: " + data[0].data;
-                    alertList.classList.add('red-text');
-                } else {
-                    dot.className = "dot";
-                    alertList.innerText = "השמיים שקטים";
-                    alertList.classList.remove('red-text');
+                    const latest = data[0]; // לוקח את ההתראה הכי חדשה ברשימה
+                    
+                    // בודק אם ההתראה היא מה-5 דקות האחרונות (כדי להחשיב אותה כ"פעילה")
+                    const alertDate = new Date(latest.alertDate);
+                    const now = new Date();
+                    const isRecent = (now - alertDate) < 300000; // 5 דקות במילישניות
+
+                    if (isRecent) {
+                        dot.className = "dot active-red";
+                        alertList.style.color = "#ff0000";
+                        alertList.innerText = "צבע אדום: " + latest.data;
+                    } else {
+                        dot.className = "dot";
+                        alertList.style.color = "#333";
+                        alertList.innerText = "השמיים שקטים";
+                    }
+                    
+                    alertTime.innerText = "התראה אחרונה ב-" + latest.alertDate.split(' ')[1] + " ב-" + latest.data;
+                    document.getElementById('status').innerText = "מחובר";
                 }
-            } catch (e) { console.log("סורק..."); }
+            } catch (e) {
+                document.getElementById('status').innerText = "שגיאת חיבור";
+                console.error(e);
+            }
         }
 
-        setInterval(checkAlerts, 2000);
+        setInterval(updateAlerts, 3000); // בודק כל 3 שניות
+        updateAlerts();
     </script>
 </body>
 </html>
