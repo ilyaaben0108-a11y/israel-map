@@ -1,37 +1,75 @@
-// פונקציה שבודקת אם יש התרעות חדשות
-async function checkAlerts() {
-    try {
-        // זהו API לדוגמה - תצטרך להחליף אותו במקור הנתונים שלך
-        const response = await fetch('https://api.redalert.me/alerts'); 
-        const alerts = await response.json();
-
-        if (alerts && alerts.length > 0) {
-            alerts.forEach(alert => {
-                // נניח וה-API מחזיר קואורדינטות [קו רוחב, קו אורך]
-                displayAlertOnMap(alert.lat, alert.lng, alert.city);
-            });
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>מפת התרעות - גרסה לבנה</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        /* איפוס הגדרות כדי למנוע רקע שחור */
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background-color: #ffffff !important; /* לבן מוחלט */
         }
-    } catch (error) {
-        console.error("שגיאה במשיכת התרעות:", error);
-    }
-}
 
-// פונקציה שמציירת את ההתרעה על המפה
-function displayAlertOnMap(lat, lng, cityName) {
-    const alertCircle = L.circle([lat, lng], {
-        color: 'red',
-        fillColor: '#f03',
-        fillOpacity: 0.8,
-        radius: 5000 // רדיוס של 5 קילומטר
-    }).addTo(map);
+        #map {
+            height: 100vh;
+            width: 100%;
+            background-color: #ffffff; /* מבטיח שהדיב עצמו לבן */
+        }
 
-    alertCircle.bindPopup("צבע אדום: " + cityName).openPopup();
+        .map-title {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            font-family: Arial, sans-serif;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
 
-    // הסרת ההתרעה אחרי 30 שניות כדי שהמפה לא תתמלא
-    setTimeout(() => {
-        map.removeLayer(alertCircle);
-    }, 30000);
-}
+    <div class="map-title">מערכת התרעות בזמן אמת</div>
+    <div id="map"></div>
 
-// הפעלת הבדיקה בכל 5 שניות
-setInterval(checkAlerts, 5000);
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // יצירת המפה עם הגדרות צבע בהיר
+        const map = L.map('map').setView([31.5, 34.9], 8);
+
+        // שימוש בטיילס הלבנים של Positron
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map);
+
+        // פונקציה להצגת התרעה (עיגול אדום מהבהב)
+        function createAlert(lat, lng, locationName) {
+            const alertCircle = L.circle([lat, lng], {
+                color: 'red',
+                fillColor: '#ff0000',
+                fillOpacity: 0.5,
+                radius: 4000
+            }).addTo(map);
+
+            alertCircle.bindPopup("<b>צבע אדום:</b> " + locationName).openPopup();
+        }
+
+        // דוגמה להתרעה שתופיע מיד כדי שתראה שזה עובד
+        createAlert(32.0853, 34.7818, "תל אביב - דוגמה");
+
+    </script>
+</body>
+</html>
