@@ -3,85 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מכ"ם התראות - בדיקה בכל שנייה</title>
+    <title>מכ"ם התראות - יציב ומהיר</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        /* רקע אפור כהה */
         body, html { margin: 0; padding: 0; height: 100%; background: #2c3e50; overflow: hidden; font-family: sans-serif; }
-        
-        /* מפה בגווני אפור */
-        #map { 
-            height: 100vh; 
-            width: 100%; 
-            filter: grayscale(100%) brightness(0.8) contrast(1.2); 
-            background: #34495e;
-        }
-        
-        /* פאנל אפור מקצועי */
+        #map { height: 100vh; width: 100%; filter: grayscale(100%) brightness(0.8) contrast(1.2); background: #34495e; }
         .panel {
             position: absolute; top: 15px; right: 15px; z-index: 9999;
             background: rgba(44, 62, 80, 0.95); border: 1px solid #7f8c8d;
             padding: 15px; border-radius: 10px; width: 260px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            text-align: center; color: #ecf0f1;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); text-align: center; color: #ecf0f1;
         }
-        
         .status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 13px; color: #bdc3c7; }
         .dot { width: 12px; height: 12px; border-radius: 50%; background: #7f8c8d; }
-        
-        /* אנימציית צבע אדום מהירה */
-        .active-red { background: #ff0000; box-shadow: 0 0 10px #ff0000; animation: blink 0.4s infinite; }
+        .active-red { background: #ff0000; box-shadow: 0 0 10px #ff0000; animation: blink 0.5s infinite; }
         .active-green { background: #2ecc71; box-shadow: 0 0 8px rgba(46, 204, 113, 0.4); }
-
         @keyframes blink { 50% { opacity: 0.3; } }
-        
         #alert-list { font-size: 18px; font-weight: bold; margin-top: 10px; min-height: 40px; }
         .red-alert { color: #ff4d4d !important; text-shadow: 0 0 8px rgba(255, 0, 0, 0.6); }
-        
         #last-info { font-size: 11px; color: #95a5a6; margin-top: 10px; border-top: 1px solid #3e4f5f; padding-top: 5px; }
     </style>
 </head>
 <body>
-
     <div class="panel">
         <div class="status-row">
             <div id="dot" class="dot"></div> 
-            <span id="status">מתחבר למכ"ם...</span>
+            <span id="status">מתחבר...</span>
         </div>
         <div id="alert-list">סורק שמיים...</div>
         <div id="last-info">טוען נתונים...</div>
     </div>
-
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // אתחול המפה
         const map = L.map('map', { zoomControl: false }).setView([31.5, 34.8], 8);
         L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
 
         async function fetchAlerts() {
             try {
-                // בדיקה דרך מתווך עם חותמת זמן בשניות כדי למנוע שמירת זיכרון ישן (Cache)
-                const response = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent('https://www.oref.org.il/WarningMessages/History/AlertsHistory.json?t=' + Math.floor(Date.now() / 1000)));
-                const wrapper = await response.json();
-                const data = JSON.parse(wrapper.contents);
+                // שימוש במתווך מהיר יותר
+                const response = await fetch('https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent('https://www.oref.org.il/WarningMessages/History/AlertsHistory.json?t=' + Date.now()));
+                const data = await response.json();
                 
                 const dot = document.getElementById('dot');
                 const alertList = document.getElementById('alert-list');
                 const status = document.getElementById('status');
                 const info = document.getElementById('last-info');
 
-                status.innerText = "סריקה חיה (כל שנייה)";
+                status.innerText = "מחובר (סריקה חיה)";
                 status.style.color = "#2ecc71";
 
                 if (data && data.length > 0) {
                     const latest = data[0];
-                    
-                    // בדיקה אם ההתראה חדשה (מה-3 דקות האחרונות)
                     const alertTime = new Date(latest.alertDate);
-                    const now = new Date();
-                    const isRecent = (now - alertTime) < 180000; 
+                    const isRecent = (new Date() - alertTime) < 300000; // 5 דקות
 
                     if (isRecent) {
                         dot.className = "dot active-red";
@@ -95,13 +71,13 @@
                     info.innerText = "אחרון: " + latest.data + " (" + latest.alertDate.split(' ')[1] + ")";
                 }
             } catch (e) {
-                document.getElementById('status').innerText = "מנסה להתחבר...";
+                document.getElementById('status').innerText = "מתחבר מחדש...";
                 document.getElementById('status').style.color = "#f1c40f";
             }
         }
 
-        // --- הבדיקה מתבצעת בכל 1000 מילישניות (שנייה אחת) ---
-        setInterval(fetchAlerts, 1000);
+        // בדיקה כל 2 שניות - הכי יציב
+        setInterval(fetchAlerts, 2000);
         fetchAlerts();
     </script>
 </body>
