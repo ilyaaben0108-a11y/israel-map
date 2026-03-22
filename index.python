@@ -1,0 +1,24 @@
+import requests
+import time
+import os
+
+# הגדרות
+URL = "https://www.oref.org.il/WarningMessages/History/AlertsHistory.json"
+HEADERS = {'User-Agent': 'Mozilla/5.0'}
+
+def get_alerts():
+    try:
+        response = requests.get(URL, headers=HEADERS, timeout=5)
+        data = response.json()
+        if data:
+            latest = data[0]
+            print(f"--- התראה אחרונה: {latest['data']} ({latest['alertDate']}) ---")
+        else:
+            print("השמיים שקטים...")
+    except Exception as e:
+        print("מנסה להתחבר למכ"ם...")
+
+while True:
+    os.system('cls' if os.name == 'nt' else 'clear') # מנקה את המסך
+    get_alerts()
+    time.sleep(2) # בודק כל 2 שניות
