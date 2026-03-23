@@ -3,116 +3,134 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מפת התרעות - זמני תצוגה משתנים</title>
+    <title>מערכת התרעות בזמן אמת | Real-time Alert System</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; background: white; font-family: sans-serif; }
-        #map { height: 100vh; width: 100%; background: #ffffff; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; }
+        #map { height: 100vh; width: 100%; background: #fff; }
 
-        .map-title {
-            position: absolute; top: 15px; right: 15px; z-index: 1000;
-            background: white; color: red; padding: 10px 20px;
-            border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            font-weight: bold; border: 2px solid red;
+        /* פאנל מידע */
+        .info-panel {
+            position: absolute; top: 10px; right: 10px; z-index: 1000;
+            background: white; padding: 15px; border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 280px;
+            border: 2px solid #eee;
         }
 
-        /* עיצוב הבועה שקופצת */
-        .leaflet-popup-content-wrapper { border-radius: 5px; border-top: 5px solid red; }
+        .alert-item { border-bottom: 1px solid #eee; padding: 10px 0; }
+        .alert-item:last-child { border: none; }
+        .critical { color: red; font-weight: bold; }
+        
+        .lang-switch {
+            position: absolute; bottom: 20px; right: 20px; z-index: 1000;
+            background: #333; color: white; border: none; padding: 10px;
+            border-radius: 5px; cursor: pointer;
+        }
+
+        .status-badge { font-size: 12px; color: #666; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
-    <div class="map-title">מערכת התרעות - מפה לבנה</div>
+    <button class="lang-switch" onclick="toggleLanguage()">English / עברית</button>
+
+    <div class="info-panel" id="panel">
+        <div id="status" class="status-badge">סורק מקורות... | Scanning...</div>
+        <div id="alerts-container">
+            <p>אין התרעות פעילות | No active alerts</p>
+        </div>
+    </div>
+
     <div id="map"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
-        // 1. הגדרת המפה ומרכוז על ישראל
+        let currentLang = 'he';
         const map = L.map('map').setView([31.5, 34.9], 8);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
 
-        // 2. שכבת בסיס לבנה (Light Mode)
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
+        const translations = {
+            he: { title: "התרעה", area: "אזור:", time: "זמן משוער:", source: "מקור:", origin: "מקור הירי:", na: "לא ידוע" },
+            en: { title: "Alert", area: "Area:", time: "Est. Time:", source: "Source:", origin: "Launch Origin:", na: "N/A" }
+        };
 
-        let geojsonLayer;
-
-        // 3. פונקציה לקביעת זמן המחיקה לפי שם האזור
-        function getDuration(name) {
-            const n = name.toLowerCase();
-            
-            // הגדרת מילות מפתח לזיהוי האזורים
-            const centerWords = ["מרכז", "תל אביב", "גוש דן", "center", "tel aviv", "petah tikva", "rishon"];
-            const northWords = ["צפון", "חיפה", "גליל", "north", "haifa", "galilee", "karmiel"];
-            const southWords = ["דרום", "נגב", "באר שבע", "אילת", "south", "negev", "beer sheva", "ashdod", "ashkelon"];
-
-            if (centerWords.some(w => n.includes(w))) return 90000; // 90 שניות למרכז
-            if (northWords.some(w => n.includes(w))) return 60000;  // 60 שניות לצפון
-            if (southWords.some(w => n.includes(w))) return 10000;  // 10 שניות לדרום
-
-            return 30000; // ברירת מחדל לאזורים אחרים: 30 שניות
+        // פונקציה לעדכון השפה
+        function toggleLanguage() {
+            currentLang = currentLang === 'he' ? 'en' : 'he';
+            document.dir = currentLang === 'he' ? 'rtl' : 'ltr';
+            updateUI();
         }
 
-        // 4. טעינת קובץ הגבולות של ישראל (GeoJSON)
-        fetch('https://raw.githubusercontent.com/OrenFarhi/israel-geojson/master/israel-cities.json')
-            .then(res => res.json())
-            .then(data => {
-                geojsonLayer = L.geoJSON(data, {
-                    style: { color: "#ddd", weight: 1, fillOpacity: 0.05 },
-                    onEachFeature: (feature, layer) => {
-                        // שמירת שם העיר בתוך השכבה
-                        layer.cityName = feature.properties.name || feature.properties.english_name || "";
+        // פונקציית הליבה: משיכת נתונים אוטומטית (בדיקה כל 10 שניות)
+        async function fetchAlerts() {
+            try {
+                // שימוש ב-Proxy לעקיפת חסימות CORS של פיקוד העורף וצבע אדום
+                const proxy = "https://api.allorigins.win/get?url=";
+                const target = encodeURIComponent("https://www.oref.org.il/WarningMessages/alert/alerts.json");
+                
+                const response = await fetch(proxy + target);
+                const rawData = await response.json();
+                
+                if (rawData.contents) {
+                    const data = JSON.parse(rawData.contents);
+                    if (data.data && data.data.length > 0) {
+                        processAlerts(data);
                     }
-                }).addTo(map);
-
-                // --- דוגמאות לבדיקה ---
-                // תל אביב (מרכז) - יימחק אחרי 90 שניות
-                activateCityAlert("Tel Aviv");
-
-                // באר שבע (דרום) - יימחק אחרי 10 שניות
-                setTimeout(() => activateCityAlert("Beer Sheva"), 2000); 
-            });
-
-        // 5. פונקציה לצביעת עיר ומחיקתה בזמן הנכון
-        function activateCityAlert(cityName) {
-            if (!geojsonLayer) return;
-
-            const timeToRemove = getDuration(cityName);
-
-            geojsonLayer.eachLayer(layer => {
-                if (layer.cityName && layer.cityName.toLowerCase().includes(cityName.toLowerCase())) {
-                    
-                    // צביעה באדום בוהק
-                    layer.setStyle({
-                        fillColor: 'red',
-                        fillOpacity: 0.8,
-                        color: 'red',
-                        weight: 2
-                    });
-
-                    // פתיחת הודעה
-                    layer.bindPopup("<b>צבע אדום: " + cityName + "</b>").openPopup();
-
-                    // מחיקה לפי הזמן שהוגדר
-                    setTimeout(() => {
-                        layer.setStyle({
-                            fillColor: 'transparent',
-                            fillOpacity: 0.05,
-                            color: '#ddd',
-                            weight: 1
-                        });
-                        if (layer.getPopup().isOpen()) {
-                            map.closePopup();
-                        }
-                    }, timeToRemove);
-
-                    console.log(`התרעה ל-${cityName} תוסר בעוד ${timeToRemove/1000} שניות.`);
                 }
+                document.getElementById('status').innerText = `Last Check: ${new Promise(r => new Date().toLocaleTimeString())}`;
+            } catch (e) {
+                console.error("Fetch error:", e);
+            }
+        }
+
+        function processAlerts(data) {
+            const container = document.getElementById('alerts-container');
+            container.innerHTML = ''; // ניקוי רשימה ישנה
+
+            data.data.forEach(city => {
+                // ניתוח הנתונים (הדמיית ניתוח מקורות)
+                const alertInfo = {
+                    city: city,
+                    time: "מיידי / Immediate", // פיקוד העורף מספק התרעות זמן אמת
+                    origin: "N/A", // מידע זה בדרך כלל לא נחשף ב-API הציבורי
+                    source: "Pikud Haoref"
+                };
+
+                displayOnMap(alertInfo);
+                addtoPanel(alertInfo);
             });
         }
+
+        function displayOnMap(info) {
+            // כאן המערכת צובעת את המפה (כפי שלמדנו קודם)
+            const circle = L.circle([32.08, 34.78], { // מיקום ברירת מחדל לבדיקה
+                color: 'red', fillColor: '#f03', fillOpacity: 0.5, radius: 5000
+            }).addTo(map);
+            
+            setTimeout(() => map.removeLayer(circle), 60000);
+        }
+
+        function addtoPanel(info) {
+            const container = document.getElementById('alerts-container');
+            const div = document.createElement('div');
+            div.className = 'alert-item';
+            const t = translations[currentLang];
+
+            div.innerHTML = `
+                <div class="critical">${t.title}: ${info.city}</div>
+                <div>${t.time} ${info.time}</div>
+                <div>${t.origin} ${info.origin}</div>
+                <small>${t.source} ${info.source}</small>
+            `;
+            container.prepend(div);
+        }
+
+        // הרצה אוטומטית כל 15 שניות
+        setInterval(fetchAlerts, 15000);
+        fetchAlerts(); // הרצה ראשונית
     </script>
 </body>
 </html>
