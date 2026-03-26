@@ -1,136 +1,352 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="he">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>מערכת התרעות בזמן אמת | Real-time Alert System</title>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>מערכת התרעה מרכזית</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; }
-        #map { height: 100vh; width: 100%; background: #fff; }
-
-        /* פאנל מידע */
-        .info-panel {
-            position: absolute; top: 10px; right: 10px; z-index: 1000;
-            background: white; padding: 15px; border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 280px;
-            border: 2px solid #eee;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1a2a2f;
+            height: 100vh;
+            overflow: hidden;
         }
-
-        .alert-item { border-bottom: 1px solid #eee; padding: 10px 0; }
-        .alert-item:last-child { border: none; }
-        .critical { color: red; font-weight: bold; }
+        .ops-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background: linear-gradient(135deg, #2c3e3a 0%, #1a2a2a 100%);
+            border: 6px solid #7f8c6d;
+        }
+        .military-header {
+            background: #2c3e3a;
+            border-bottom: 3px solid #b87c2e;
+            padding: 0.5rem 1.2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .title-section h2 { font-size: 1.1rem; color: #ffffff; }
+        .title-section p { font-size: 0.65rem; color: #dddddd; }
+        .status-badge {
+            background: #2c3e3a;
+            padding: 4px 12px;
+            border-left: 3px solid #e67e22;
+            font-size: 0.7rem;
+            color: #ffffff;
+        }
+        .blink { animation: blink 1s infinite; color: #ff8866; }
+        @keyframes blink { 50% { opacity: 0.5; } }
+        .time-display {
+            font-family: monospace;
+            background: #1a2a2a;
+            padding: 4px 10px;
+            border: 1px solid #b87c2e;
+            color: #ffffff;
+        }
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            gap: 2px;
+        }
+        .map-container {
+            flex: 3;
+            margin: 5px;
+            border: 2px solid #b87c2e;
+            position: relative;
+            background: #f5f5f0;
+        }
+        #map { 
+            width: 100%; 
+            height: 100%; 
+            background: #e8e8dd;
+        }
+        .alerts-panel {
+            flex: 1.2;
+            background: #1e2a2a;
+            border-left: 3px solid #b87c2e;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .panel-header {
+            background: #2c3e3a;
+            padding: 10px;
+            border-bottom: 2px solid #b87c2e;
+            font-weight: bold;
+            color: #ffffff;
+        }
+        .alerts-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+        .alert-card {
+            background: #2c3e3a;
+            border-left: 4px solid #e67e22;
+            padding: 8px;
+            margin-bottom: 8px;
+            font-size: 0.7rem;
+            color: #f0f0f0;
+        }
+        .alert-location { font-weight: bold; color: #ffaa66; }
+        .alert-time { font-family: monospace; font-size: 0.6rem; color: #ccccaa; margin-top: 4px; }
+        .refresh-btn {
+            background: #3a5a4a;
+            border: 1px solid #b87c2e;
+            color: #ffffff;
+            padding: 4px 10px;
+            cursor: pointer;
+            float: left;
+        }
+        .command-footer {
+            background: #2c3e3a;
+            border-top: 2px solid #b87c2e;
+            padding: 4px 16px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.6rem;
+            color: #ffffff;
+        }
+        @media (max-width: 800px) {
+            .main-content { flex-direction: column; }
+            .map-container { flex: 2; min-height: 250px; }
+        }
+        .loading { text-align: center; padding: 20px; color: #ccccaa; }
         
-        .lang-switch {
-            position: absolute; bottom: 20px; right: 20px; z-index: 1000;
-            background: #333; color: white; border: none; padding: 10px;
-            border-radius: 5px; cursor: pointer;
+        /* התאמות למפה בהירה */
+        .leaflet-popup-content-wrapper {
+            background: #2c3e3a;
+            color: #ffffff;
+            border-radius: 4px;
         }
-
-        .status-badge { font-size: 12px; color: #666; margin-bottom: 10px; }
+        .leaflet-popup-tip {
+            background: #2c3e3a;
+        }
+        .leaflet-control-attribution {
+            background: rgba(44,62,58,0.8);
+            color: #dddddd;
+        }
+        .leaflet-control-attribution a {
+            color: #ffaa66;
+        }
     </style>
 </head>
 <body>
+<div class="ops-container">
+    <div class="military-header">
+        <div class="title-section">
+            <h2><i class="fas fa-shield-alt"></i> מערכת התרעה מרכזית</h2>
+            <p>תצוגה גאוגרפית | עדכון שוטף</p>
+        </div>
+        <div class="status-badge">
+            <i class="fas fa-circle" style="color:#ff5533; font-size:0.6rem;"></i>
+            <span class="blink">ACTIVE NETWORK</span>
+        </div>
+        <div class="time-display" id="liveClock"></div>
+    </div>
 
-    <button class="lang-switch" onclick="toggleLanguage()">English / עברית</button>
-
-    <div class="info-panel" id="panel">
-        <div id="status" class="status-badge">סורק מקורות... | Scanning...</div>
-        <div id="alerts-container">
-            <p>אין התרעות פעילות | No active alerts</p>
+    <div class="main-content">
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+        <div class="alerts-panel">
+            <div class="panel-header">
+                <i class="fas fa-tower-broadcast"></i> אירועים אחרונים
+                <button id="refreshAlertsBtn" class="refresh-btn"><i class="fas fa-sync-alt"></i> רענון</button>
+            </div>
+            <div class="alerts-list" id="alertsList">
+                <div class="loading">טוען נתונים...</div>
+            </div>
         </div>
     </div>
 
-    <div id="map"></div>
+    <div class="command-footer">
+        <span><i class="fas fa-map-marked-alt"></i> אזורי כוננות | נתונים דינמיים</span>
+        <span><i class="fas fa-lock"></i> מאובטח | מערכת 2.0</span>
+    </div>
+</div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    let map;
+    let markersLayer;
+    let currentAlerts = [];
 
-    <script>
-        let currentLang = 'he';
-        const map = L.map('map').setView([31.5, 34.9], 8);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+    // קואורדינטות משוערות ליישובים בישראל (מורחב)
+    const coordinates = {
+        'שדרות': [31.525, 34.595], 'אשקלון': [31.668, 34.574], 'עוטף עזה': [31.467, 34.533],
+        'קריית שמונה': [33.207, 35.570], 'מטולה': [33.279, 35.580], 'תל אביב': [32.085, 34.782],
+        'ירושלים': [31.768, 35.214], 'חיפה': [32.794, 34.989], 'באר שבע': [31.253, 34.791],
+        'אילת': [29.557, 34.952], 'נתניה': [32.321, 34.853], 'פתח תקווה': [32.084, 34.887],
+        'ראשון לציון': [31.973, 34.792], 'אשדוד': [31.801, 34.643], 'בית שמש': [31.747, 34.993],
+        'מודיעין': [31.898, 35.010], 'הרצליה': [32.166, 34.843], 'רעננה': [32.185, 34.873],
+        'כפר סבא': [32.178, 34.907], 'הוד השרון': [32.158, 34.893], 'רמלה': [31.931, 34.874],
+        'לוד': [31.951, 34.888], 'נהריה': [33.006, 35.098], 'עכו': [32.928, 35.076],
+        'כרמיאל': [32.914, 35.289], 'צפת': [32.965, 35.498], 'טבריה': [32.792, 35.531],
+        'ירוחם': [31.000, 35.000], 'דימונה': [31.070, 35.033], 'מצפה רמון': [30.609, 34.802],
+        'אריאל': [32.106, 35.188], 'מעלה אדומים': [31.777, 35.299], 'ביתר עילית': [31.697, 35.119],
+        'מודיעין עילית': [31.930, 35.044], 'אלעד': [32.052, 34.951], 'אור יהודה': [32.029, 34.856],
+        'יהוד': [32.033, 34.887], 'קריית אונו': [32.064, 34.857], 'גבעתיים': [32.072, 34.809],
+        'בני ברק': [32.094, 34.834], 'רמת גן': [32.084, 34.804], 'חולון': [32.010, 34.779],
+        'בת ים': [32.023, 34.750], 'יבנה': [31.878, 34.739], 'גדרה': [31.814, 34.778],
+        'קריית גת': [31.604, 34.768], 'אופקים': [31.314, 34.620], 'נתיבות': [31.423, 34.588],
+        'שער הנגב': [31.517, 34.602], 'גוש דן': [32.080, 34.800], 'השרון': [32.200, 34.850],
+        'הכרמל': [32.750, 35.000], 'הגליל': [32.900, 35.400], 'הערבה': [30.800, 35.200]
+    };
 
-        const translations = {
-            he: { title: "התרעה", area: "אזור:", time: "זמן משוער:", source: "מקור:", origin: "מקור הירי:", na: "לא ידוע" },
-            en: { title: "Alert", area: "Area:", time: "Est. Time:", source: "Source:", origin: "Launch Origin:", na: "N/A" }
-        };
-
-        // פונקציה לעדכון השפה
-        function toggleLanguage() {
-            currentLang = currentLang === 'he' ? 'en' : 'he';
-            document.dir = currentLang === 'he' ? 'rtl' : 'ltr';
-            updateUI();
+    function getCoordinates(locationText) {
+        for (let [key, coords] of Object.entries(coordinates)) {
+            if (locationText.includes(key)) return coords;
         }
+        return null;
+    }
 
-        // פונקציית הליבה: משיכת נתונים אוטומטית (בדיקה כל 10 שניות)
-        async function fetchAlerts() {
-            try {
-                // שימוש ב-Proxy לעקיפת חסימות CORS של פיקוד העורף וצבע אדום
-                const proxy = "https://api.allorigins.win/get?url=";
-                const target = encodeURIComponent("https://www.oref.org.il/WarningMessages/alert/alerts.json");
-                
-                const response = await fetch(proxy + target);
-                const rawData = await response.json();
-                
-                if (rawData.contents) {
-                    const data = JSON.parse(rawData.contents);
-                    if (data.data && data.data.length > 0) {
-                        processAlerts(data);
+    function extractLocationsFromHistory(html) {
+        const locations = [];
+        const lines = html.split('\n');
+        let inHistory = false;
+        
+        for (let line of lines) {
+            if (line.includes('היסטוריית התרעות') || line.includes('התרעות ב-24')) {
+                inHistory = true;
+                continue;
+            }
+            if (inHistory && (line.includes('קו העימות') || line.includes('עדכון') || line.match(/[א-ת]{3,}/))) {
+                if (line.length > 10 && line.length < 300 && !line.includes('יתקבלו') && !line.includes('בעקבות')) {
+                    let clean = line.replace(/<[^>]*>/g, '').trim();
+                    if (clean && !clean.includes('האירוע הסתיים') && !clean.includes('מבזק')) {
+                        locations.push(clean);
                     }
                 }
-                document.getElementById('status').innerText = `Last Check: ${new Promise(r => new Date().toLocaleTimeString())}`;
-            } catch (e) {
-                console.error("Fetch error:", e);
             }
         }
+        return locations;
+    }
 
-        function processAlerts(data) {
-            const container = document.getElementById('alerts-container');
-            container.innerHTML = ''; // ניקוי רשימה ישנה
-
-            data.data.forEach(city => {
-                // ניתוח הנתונים (הדמיית ניתוח מקורות)
-                const alertInfo = {
-                    city: city,
-                    time: "מיידי / Immediate", // פיקוד העורף מספק התרעות זמן אמת
-                    origin: "N/A", // מידע זה בדרך כלל לא נחשף ב-API הציבורי
-                    source: "Pikud Haoref"
-                };
-
-                displayOnMap(alertInfo);
-                addtoPanel(alertInfo);
-            });
-        }
-
-        function displayOnMap(info) {
-            // כאן המערכת צובעת את המפה (כפי שלמדנו קודם)
-            const circle = L.circle([32.08, 34.78], { // מיקום ברירת מחדל לבדיקה
-                color: 'red', fillColor: '#f03', fillOpacity: 0.5, radius: 5000
-            }).addTo(map);
+    function parseAlerts(locationTexts) {
+        const alerts = [];
+        const seen = new Set();
+        
+        for (let text of locationTexts) {
+            let mainLocation = text.split(',')[0].trim();
+            mainLocation = mainLocation.split(' - ')[0].trim();
+            mainLocation = mainLocation.replace(/^[0-9: -]+/, '').trim();
             
-            setTimeout(() => map.removeLayer(circle), 60000);
+            if (mainLocation.length < 2 || seen.has(mainLocation)) continue;
+            
+            const coords = getCoordinates(mainLocation);
+            if (coords) {
+                seen.add(mainLocation);
+                alerts.push({
+                    location: mainLocation,
+                    lat: coords[0],
+                    lng: coords[1],
+                    time: new Date().toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'}),
+                    raw: text.substring(0, 80)
+                });
+            }
         }
+        return alerts.slice(0, 25);
+    }
 
-        function addtoPanel(info) {
-            const container = document.getElementById('alerts-container');
-            const div = document.createElement('div');
-            div.className = 'alert-item';
-            const t = translations[currentLang];
-
-            div.innerHTML = `
-                <div class="critical">${t.title}: ${info.city}</div>
-                <div>${t.time} ${info.time}</div>
-                <div>${t.origin} ${info.origin}</div>
-                <small>${t.source} ${info.source}</small>
-            `;
-            container.prepend(div);
+    async function fetchRealAlerts() {
+        const listElement = document.getElementById('alertsList');
+        listElement.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-pulse"></i> מאתר נתונים...</div>';
+        
+        try {
+            const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent('https://www.tzevaadom.co.il');
+            const response = await fetch(proxyUrl);
+            const data = await response.json();
+            const html = data.contents;
+            
+            const locationTexts = extractLocationsFromHistory(html);
+            const alerts = parseAlerts(locationTexts);
+            
+            if (alerts.length === 0) {
+                listElement.innerHTML = '<div class="loading">⚠️ לא נמצאו התרעות אחרונות</div>';
+                return;
+            }
+            
+            currentAlerts = alerts;
+            updateMap();
+            updateAlertsList();
+            
+        } catch (error) {
+            console.error('שגיאה:', error);
+            listElement.innerHTML = '<div class="loading">❌ שגיאה בטעינה. בדוק חיבור לאינטרנט.</div>';
         }
-
-        // הרצה אוטומטית כל 15 שניות
-        setInterval(fetchAlerts, 15000);
-        fetchAlerts(); // הרצה ראשונית
-    </script>
+    }
+    
+    function updateMap() {
+        if (!markersLayer) {
+            markersLayer = L.layerGroup().addTo(map);
+        } else {
+            markersLayer.clearLayers();
+        }
+        
+        currentAlerts.forEach(alert => {
+            const icon = L.divIcon({
+                html: `<div style="background:#e67e22; width:14px; height:14px; border-radius:50%; border:2px solid #ffffff; box-shadow:0 0 6px #e67e22;"></div>`,
+                iconSize: [14, 14],
+                className: 'custom-icon'
+            });
+            const marker = L.marker([alert.lat, alert.lng], { icon: icon }).addTo(markersLayer);
+            marker.bindPopup(`
+                <b>📍 ${alert.location}</b><br>
+                <span style="color:#ffaa66;">⚠️ התרעה</span><br>
+                ${alert.time}
+            `);
+        });
+        
+        if (currentAlerts.length > 0) {
+            const bounds = [];
+            currentAlerts.forEach(a => bounds.push([a.lat, a.lng]));
+            map.fitBounds(bounds, { padding: [30, 30] });
+        }
+    }
+    
+    function updateAlertsList() {
+        const container = document.getElementById('alertsList');
+        container.innerHTML = currentAlerts.map(alert => `
+            <div class="alert-card">
+                <div class="alert-location"><i class="fas fa-map-marker-alt"></i> ${alert.location}</div>
+                <div class="alert-time"><i class="far fa-clock"></i> ${alert.time}</div>
+                <div style="font-size:0.6rem; color:#ccccaa;">${alert.raw.substring(0, 50)}...</div>
+            </div>
+        `).join('');
+    }
+    
+    function initMap() {
+        // מפה בהירה עם רקע לבן/אפור בהיר
+        map = L.map('map').setView([31.5, 34.8], 7.5);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            subdomains: 'abcd',
+            maxZoom: 19,
+            minZoom: 6
+        }).addTo(map);
+        markersLayer = L.layerGroup().addTo(map);
+    }
+    
+    function updateClock() {
+        const now = new Date();
+        document.getElementById('liveClock').innerText = now.toLocaleTimeString('he-IL', { hour12: false }) + ' | ' + 
+            now.toLocaleDateString('he-IL', { day:'2-digit', month:'2-digit' });
+    }
+    
+    document.getElementById('refreshAlertsBtn').addEventListener('click', fetchRealAlerts);
+    
+    initMap();
+    setInterval(updateClock, 1000);
+    updateClock();
+    fetchRealAlerts();
+    setInterval(fetchRealAlerts, 60000);
+</script>
 </body>
 </html>
